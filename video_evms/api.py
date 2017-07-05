@@ -7,6 +7,8 @@ from django.conf import settings
 from lxml.etree import Element, SubElement
 import requests
 
+from mixins import MESSAGES
+
 log = logging.getLogger(__name__)
 
 if hasattr(settings, 'EVMS_URL'):
@@ -111,9 +113,11 @@ def get_url_for_profile(edx_video_id, val_profile):
 
 
 def get_video_info(edx_video_id):
-    token = None
     if hasattr(settings, 'EVMS_API_KEY'):
         token = getattr(settings, 'EVMS_API_KEY')
+    else:
+        logging.error("EVMS_API_KEY is not set")
+        return None
     url_api = u'{0}/api/v2/video/{1}?token={2}'.format(EVMS_URL, edx_video_id, token)
     try:
         response = urllib2.urlopen(url_api)
@@ -161,31 +165,30 @@ def get_video_info_for_course_and_profiles(course_id, video_profile_names):
 
 
 def get_course_evms_guid(course_id):
+    """
+    GUID курса совпадает для разных сессий.
+    course_id должен быть в форме org+name+run
+    """
     return str(course_id).split('+')[1]
 
 
 def get_course_edx_val_ids(course_id):
     token = getattr(settings, 'EVMS_API_KEY')
     course_vids_api_url = '{0}/api/v2/course'.format(EVMS_URL)  #только при исполнении, чтобы не было конфликтов при paver update_assets
-    ##
-    course_id = "spam+akbar"
-    ##
     course_guid = get_course_evms_guid(course_id)
-    print("GUID")
-    print(course_guid)
     url_api = u'{0}/{1}?token={2}'.format(course_vids_api_url, course_guid, token)
     try:
         response = requests.get(url_api)
         videos = response.json().get("videos", False)
     except Exception as e:
-        log.error("Openedx EVMS api exception:{}".format(str(e)))
+        log.error(u"Openedx EVMS api exception: '{}'".format(str(e)))
         return False
 
-    values = [{"display_name": u"***Evms video id is None or inputted manually***", "value": ""}]
+    values = [{"display_name": MESSAGES["MANUALLY_MESSAGE"], "value": ""}]
     if not videos:
-        log.error("EVMS api response error for course_id {}:{}".format(course_id, str(response)))
+        log.error(u"EVMS api response error for course_id {}:{}".format(course_id, str(response)))
         return values
-    thr = 67
+    thr = 67 # Длина форматируемой строки для отображения в редакторе Studio
     py_placeholder = " --- "
     for v in videos:
         name = u"{}{}{}".format(v["edx_video_id"], py_placeholder, v["client_video_id"])
@@ -193,11 +196,14 @@ def get_course_edx_val_ids(course_id):
             name = "".join([name[0:thr], u"..."])
         _dict = {"display_name": name, "value": v["edx_video_id"], "status": v["status"]}
         values.append(_dict)
-    print(values)
     return values
 
 
 def get_available_profiles(edx_video_id, val_profiles):
+    """
+    Доступные для видео форматы из списка:
+        ['original', 'desktop_mp4', 'SD', 'sd', 'HD', 'hd', 'hd2']
+    """
     raw_data = get_video_info(edx_video_id)
     if raw_data is None:
         raw_data = []

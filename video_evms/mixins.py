@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
-from xblock.fields import Scope, String, Boolean
+from django.conf import settings
+from xblock.fields import Scope, String
 from xmodule.modulestore.inheritance import own_metadata
 
 import api as edxval_api
@@ -9,7 +10,7 @@ try:
     from branding.models import BrandingInfoConfig
     from xmodule.video_module.video_utils import create_youtube_string, get_poster, rewrite_video_url
     from xmodule.video_module.bumper_utils import bumperize
-except:  # means used not in edx
+except:  # заглушки для импорта из shell
     BrandingInfoConfig = None
     dummy = lambda x: None
     bumperize = dummy
@@ -19,23 +20,27 @@ except:  # means used not in edx
 
 log = logging.getLogger(__name__)
 _ = lambda text: text
+MESSAGES = {
+    "ERROR_MESSAGE": u"*************************Error*************************",
+    "PROGRESS_MESSAGE": u"+++++++++++++++In progress++++++++++++++",
+    "MANUALLY_MESSAGE": u"***Evms video id is None or inputted manually***",
+    "NONE_MESSAGE":"None"
+}
+VIDEO_STATUSES = ('uploading', 'new', 'storage', 'compressor')
+if hasattr(settings, "EVMS_VIDEO_STATUSES"):
+    VIDEO_STATUSES = settings.EVMS_VIDEO_STATUSES
 
 
-class CourseFieldsEvmsMixin(object):
-    """This mixin should be inherited by xmodule.course_module.CourseFields"""
-    update_from_evms = Boolean(
-        display_name=_("Update available video from EVMS"),
-        help=_("Enter true or false. "),
-        scope=Scope.settings,
-        default=True
-    )
-
-
-class VideoModuleEvmsMixin(object):
-    """This mixin should be inherited by xmodule.video_module.video_module.VideoModule"""
+class _VideoModuleEvmsMixin(object):
+    """
+    Этот класс надо наследовать в xmodule.video_module.video_module.VideoModule.
+    Он перезаписывает метод render_template у наследника, добавляя в контекст
+    поле only_original: если видео на EVMS доступно только в несжатом виде, то
+    преподавателю оно показывается с сообщением об этом.
+    """
     def __init__(self, *args, **kwargs):
-        """Adds 'only_original' field to video."""
-        super(VideoModuleEvmsMixin, self).__init__(*args, **kwargs)
+        super(_VideoModuleEvmsMixin, self).__init__(*args, **kwargs)
+        #TODO: найти лучший вариант проверки
         is_studio = len(self.runtime.STATIC_URL.split('/static/')[1]) > 1
         only_original = False
         if is_studio:
@@ -51,19 +56,23 @@ class VideoModuleEvmsMixin(object):
         self.system.render_template = updated_context_render_template
 
 
-class VideoDescriptorEvmsMixin(object):
-    """This mixin should be inherited by xmodule.video_module.video_module.VideoDescriptorMixin"""
+class _VideoDescriptorEvmsMixin(object):
+    """
+    Этот класс надо наследовать в xmodule.video_module.video_module.VideoDescriptor
+    Он перезаписывает методы editr_saved и get_context у наследника: синхронизирует
+    поле выпадающего списка и edx_video_id, подменяет второе на первое при рендере.
+    """
     edx_dropdown_video_id = String(
         help=_(
-            "List of known Video IDs for this course. Updates automatically. To set Video ID from other course go to 'Advanced' and use 'Video ID'"),
+            "List of known Video IDs for this course. Updates automatically. "
+            "To set Video ID from other course go to 'Advanced' and use 'Video ID'"),
         display_name=_(" Course Video ID"),
         scope=Scope.settings,
         default="",
     )
 
     def __init__(self, *args, **kwargs):
-        """Two child methods are patched by updated ones: get_context and editor_saved"""
-        super(VideoDescriptorEvmsMixin, self).__init__(*args, **kwargs)
+        super(_VideoDescriptorEvmsMixin, self).__init__(*args, **kwargs)
         if self.edx_video_id != self.edx_dropdown_video_id:
             self.edx_dropdown_video_id = self.edx_video_id
 
@@ -74,7 +83,9 @@ class VideoDescriptorEvmsMixin(object):
         self.editor_saved = self.updated_editor_saved
 
     def updated_get_context(self):
-        """Used instead of original get_context"""
+        """
+        Используется потомком вместо get_context
+        """
         context = self.child_get_context()
         self.editable_metadata_fields['edx_video_id'] = self.editable_metadata_fields['edx_dropdown_video_id']
         context['transcripts_basic_tab_metadata']['edx_video_id'] = self.editable_metadata_fields[
@@ -82,7 +93,9 @@ class VideoDescriptorEvmsMixin(object):
         return context
 
     def updated_editor_saved(self, user, old_metadata, old_content):
-        """Used instead of original editor_saved"""
+        """
+        Используется потомком вместо editor_saved
+        """
         self.child_editor_saved(user, old_metadata, old_content)
         self.runtime.modulestore.update_item(self, user.id)
         self.synch_edx_id(old_metadata=old_metadata, new_metadata=own_metadata(self))
@@ -90,7 +103,7 @@ class VideoDescriptorEvmsMixin(object):
 
     def studio_view(self, context):
         self.set_video_evms_values()
-        return super(VideoDescriptorEvmsMixin, self).studio_view(context)
+        return super(_VideoDescriptorEvmsMixin, self).studio_view(context)
 
     @staticmethod
     def edx_dropdown_video_overriden(s):
@@ -99,7 +112,6 @@ class VideoDescriptorEvmsMixin(object):
     def synch_edx_id(self, old_metadata=None, new_metadata=None):
         """
         Согласует данные в полях edx_dropdown_video_id и edx_video_id перед сохранением
-        :return:
         """
         dropdown_eid = self.edx_dropdown_video_id
         native_eid = self.edx_video_id
@@ -147,19 +159,16 @@ class VideoDescriptorEvmsMixin(object):
         return
 
     def set_video_evms_values(self):
-        turned_off_vals = lambda x: [
-            {"display_name": u"'Update available video' option is turned off in course settings", "value": ""}]
         if edxval_api:
             get_course_edx_val_ids = edxval_api.get_course_edx_val_ids
         else:
             get_course_edx_val_ids = lambda x: [{"display_name": u"None", "value": ""}]
         course = self.runtime.modulestore.get_course(self.location.course_key)
-        if not course.update_from_evms:
-            get_course_edx_val_ids = turned_off_vals
         values = get_course_edx_val_ids(course.id)
         if not values:
-            values = [{"display_name": u"None", "value": ""}]
-        first_value = [{"display_name": u"***Evms video id is None or inputted manually***", "value": ""}]
+            values = [{"display_name": MESSAGES["NONE_MESSAGE"], "value": ""}]
+        first_value = [{"display_name": MESSAGES['MANUALLY_MESSAGE'], "value": ""}]
+
         ok_values = []
         new_values = []
         error_values = []
@@ -171,16 +180,28 @@ class VideoDescriptorEvmsMixin(object):
             if 'status' in v:
                 if v['status'] == 'ok':
                     ok_values.append(v)
-                elif v['status'] in ['uploading', 'new', 'storage', 'compressor']:
+                elif v['status'] in VIDEO_STATUSES:
                     new_values.append(v)
                 else:
-                    logging.error(u"Status of {} is {}".format(v['display_name'], v['status']))
+                    log.warning(u"Status of {} is {}".format(v['display_name'], v['status']))
                     error_values.append(v)
         if new_values:
-            new_values = [{"display_name": u"+++++++++++++++In progress++++++++++++++", "value": ""}] + new_values
+            new_values = [{"display_name": MESSAGES['PROGRESS_MESSAGE'], "value": ""}] + new_values
         if error_values:
-            error_values = [{"display_name": u"*************************Error*************************",
+            error_values = [{"display_name": MESSAGES['ERROR_MESSAGE'],
                              "value": ""}] + error_values
         values = override + first_value + ok_values + new_values + error_values
 
         self.fields["edx_dropdown_video_id"]._values = values
+
+
+"""
+Заглушки для отключения фичи
+"""
+if not settings.FEATURES.get("EVMS_TURN_ON"):
+    class VideoModuleEvmsMixin(object): pass
+    class VideoDescriptorEvmsMixin(object): pass
+else:
+    class VideoModuleEvmsMixin(_VideoModuleEvmsMixin): pass
+    class VideoDescriptorEvmsMixin(_VideoDescriptorEvmsMixin): pass
+

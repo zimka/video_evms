@@ -20,7 +20,15 @@
 
 * Установить пакет
 * В common/lib/xmodule/xmodule/video_module/video_module.py из video_evms.mixins импортировать VideoModuleEvmsMixin, VideoDescriptorEvmsMixin, добавить их к VideoModule и VideoDescriptor соответственно
-* В common/lib/xmodule/xmodule/course_module.py из video_evms.mixins импортировать CourseModuleEvmsMixin, добавить ее к CourseModule
+
+
+  ::
+
+    class VideoModule(VideoModuleEvmsMixin, VideoFields, ...)
+    ...
+    class VideoDescriptor(VideoDescriptorEvmsMixin, VideoFields,...)
+
+
 * в lms/templates/video.html найти и добавить:
 
 
@@ -38,4 +46,4 @@
     <div class="video-player-post"></div>
 
 
-* Добавить в env.py переменные EVMS_URL, EVMS_API_KEY; добавить "video_evms" в INSTALLED_APPS
+* Добавить в env.py переменные EVMS_URL, EVMS_API_KEY, FEATURES["EVMS_TURN_ON"]; добавить "video_evms" в INSTALLED_APPS; если статусы видео отличаются от ('uploading', 'new', 'storage', 'compressor'), их мжно перезаписать в переменной EVMS_VIDEO_STATUSES
