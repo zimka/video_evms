@@ -198,10 +198,13 @@ class _VideoDescriptorEvmsMixin(object):
 """
 Заглушки для отключения фичи
 """
-if not settings.FEATURES.get("EVMS_TURN_ON"):
-    class VideoModuleEvmsMixin(object): pass
-    class VideoDescriptorEvmsMixin(object): pass
-else:
-    class VideoModuleEvmsMixin(_VideoModuleEvmsMixin): pass
-    class VideoDescriptorEvmsMixin(_VideoDescriptorEvmsMixin): pass
+class VideoModuleEvmsMixin(_VideoModuleEvmsMixin): pass
+class VideoDescriptorEvmsMixin(_VideoDescriptorEvmsMixin): pass
+
+try:
+    if not settings.FEATURES.get("EVMS_TURN_ON"):
+        class VideoModuleEvmsMixin(object): pass
+        class VideoDescriptorEvmsMixin(object): pass
+except:
+    pass
 
