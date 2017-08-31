@@ -7,7 +7,7 @@ from django.conf import settings
 from lxml.etree import Element, SubElement
 import requests
 
-from mixins import MESSAGES
+from settings import MESSAGES
 
 log = logging.getLogger(__name__)
 

@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 import logging
+import os
+
 from django.conf import settings
 from xblock.fields import Scope, String
 from xmodule.modulestore.inheritance import own_metadata
-
-import api as edxval_api
+from pkg_resources import resource_string
 
 try:
     from branding.models import BrandingInfoConfig
@@ -20,27 +21,22 @@ except:  # заглушки для импорта из shell
 
 log = logging.getLogger(__name__)
 _ = lambda text: text
-MESSAGES = {
-    "ERROR_MESSAGE": u"*************************Error*************************",
-    "PROGRESS_MESSAGE": u"+++++++++++++++In progress++++++++++++++",
-    "MANUALLY_MESSAGE": u"***Evms video id is None or inputted manually***",
-    "NONE_MESSAGE":"None"
-}
-VIDEO_STATUSES = ('uploading', 'new', 'storage', 'compressor')
-if hasattr(settings, "EVMS_VIDEO_STATUSES"):
-    VIDEO_STATUSES = settings.EVMS_VIDEO_STATUSES
+
+import api as edxval_api
+from settings import VIDEO_STATUSES, MESSAGES, is_quality_control_set_up
 
 
-class _VideoModuleEvmsMixin(object):
+class VideoModuleEvmsMixin(object):
     """
     Этот класс надо наследовать в xmodule.video_module.video_module.VideoModule.
     Он перезаписывает метод render_template у наследника, добавляя в контекст
     поле only_original: если видео на EVMS доступно только в несжатом виде, то
     преподавателю оно показывается с сообщением об этом.
     """
+
     def __init__(self, *args, **kwargs):
-        super(_VideoModuleEvmsMixin, self).__init__(*args, **kwargs)
-        #TODO: найти лучший вариант проверки
+        super(VideoModuleEvmsMixin, self).__init__(*args, **kwargs)
+         #TODO: найти лучший вариант проверки
         is_studio = len(self.runtime.STATIC_URL.split('/static/')[1]) > 1
         only_original = False
         if is_studio:
@@ -55,11 +51,24 @@ class _VideoModuleEvmsMixin(object):
 
         self.system.render_template = updated_context_render_template
 
+        feature_quality_on = settings.FEATURES.get('EVMS_QUALITY_CONTROL_ON', False)
+        files_quality_set = is_quality_control_set_up()
 
-class _VideoDescriptorEvmsMixin(object):
+        if feature_quality_on and not files_quality_set:
+            log.error("Feature EVMS_QUALITY_CONTROL_ON is turned on, but js files aren't set up. "
+                      "Users won't be able to switch quality."
+                      "Run django command 'video_quality enable' or turn feature off in settings")
+
+        if files_quality_set and not feature_quality_on:
+            log.error("Feature EVMS_QUALITY_CONTROL_ON is not turned on, but js files are set up. "
+                      "Users won't be able to watch videos!"
+                      "Turn feature on in settings or run django command 'video_quality disable'")
+
+
+class VideoDescriptorEvmsMixin(object):
     """
     Этот класс надо наследовать в xmodule.video_module.video_module.VideoDescriptor
-    Он перезаписывает методы editr_saved и get_context у наследника: синхронизирует
+    Он перезаписывает методы editor_saved и get_context у наследника: синхронизирует
     поле выпадающего списка и edx_video_id, подменяет второе на первое при рендере.
     """
     edx_dropdown_video_id = String(
@@ -72,7 +81,7 @@ class _VideoDescriptorEvmsMixin(object):
     )
 
     def __init__(self, *args, **kwargs):
-        super(_VideoDescriptorEvmsMixin, self).__init__(*args, **kwargs)
+        super(VideoDescriptorEvmsMixin, self).__init__(*args, **kwargs)
         if self.edx_video_id != self.edx_dropdown_video_id:
             self.edx_dropdown_video_id = self.edx_video_id
 
@@ -103,7 +112,7 @@ class _VideoDescriptorEvmsMixin(object):
 
     def studio_view(self, context):
         self.set_video_evms_values()
-        return super(_VideoDescriptorEvmsMixin, self).studio_view(context)
+        return super(VideoDescriptorEvmsMixin, self).studio_view(context)
 
     @staticmethod
     def edx_dropdown_video_overriden(s):
@@ -194,17 +203,9 @@ class _VideoDescriptorEvmsMixin(object):
 
         self.fields["edx_dropdown_video_id"]._values = values
 
-
-"""
-Заглушки для отключения фичи
-"""
-class VideoModuleEvmsMixin(_VideoModuleEvmsMixin): pass
-class VideoDescriptorEvmsMixin(_VideoDescriptorEvmsMixin): pass
-
 try:
     if not settings.FEATURES.get("EVMS_TURN_ON"):
         class VideoModuleEvmsMixin(object): pass
         class VideoDescriptorEvmsMixin(object): pass
-except:
+except: # Падает в paver update_assets: нет доступа к settings
     pass
-
