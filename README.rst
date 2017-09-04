@@ -31,6 +31,17 @@
     ...
     class VideoDescriptor(VideoDescriptorEvmsMixin, VideoFields,...)
 
+    
+ В этом же файле нужно заменить импорт edxval.api на импорт video_evms.api
+
+
+ ::
+
+    try:
+        #import edxval.api as edxval_api    
+        import video_evms.api as edxval_api 
+    except ImportError:
+        edxval_api = None
 
 * в lms/templates/video.html найти и добавить:
 
@@ -56,29 +67,13 @@
 
 * Установить дополнение 1
 
-* В файле common/lib/xmodule/xmodule/js/src/video/02_html_video.js заменить
+* Запустить команду для замены статики
 
   ::
 
-    define(
-    'video/02_html5_video.js', // Заменить на: 'video/019_html5_video.js',
-    [],
-
-
-  и переименовать файл в 019_html5_video.js
-
-* В файле common/lib/xmodule/xmodule/js/src/video/05_video_quality_control.js заменить
-
-  ::
-
-    define(
-    'video/05_video_quality_control.js', // Заменить на: 'video/049_video_quality_control.js',
-    [],
-
-
-  и переименовать файл в 049_video_quality_control.js
-
-* Кинуть video_evms/static/02_html5_video.js и video_evms/static/05_video_quality_control.js в папку common/lib/xmodule/xmodule/js/src/video/
+    ./manage.py lms video_quality enable --settigs=npoed
+    
+ 
 
 * В файле common/lib/xmodule/xmodule/video/video_module.py в классе VideoModule найти поле js:
 
@@ -106,3 +101,10 @@
             resource_string(module, 'js/src/video/049_video_quality_control.js'),
             ]
           }
+
+* Пересобрать статику
+
+ ::
+
+
+   paver update_assets lms --setings=npoed
