@@ -38,7 +38,7 @@
  ::
 
     try:
-        #import edxval.api as edxval_api    
+        #import edxval.api as edxval_api
         import video_evms.api as edxval_api 
     except ImportError:
         edxval_api = None
@@ -71,40 +71,14 @@
 
   ::
 
-    ./manage.py lms video_quality enable --settigs=npoed
-    
- 
-
-* В файле common/lib/xmodule/xmodule/video/video_module.py в классе VideoModule найти поле js:
-
- ::
-
-    class VideoModule(...):
-    ...
-    js = {
-        'js': [
-            resource_string(module, 'js/src/time.js'),
-            resource_string(module, 'js/src/video/00_component.js'),
-            resource_string(module, 'js/src/video/00_video_storage.js'),
-            resource_string(module, 'js/src/video/00_resizer.js'),
-            ...
-            ]
-          }
-
- Добавить в конце списка
-
- ::
+    ./manage.py lms video_quality enable --settings=npoed
 
 
-            ...
-            resource_string(module, 'js/src/video/019_html5_video.js'),
-            resource_string(module, 'js/src/video/049_video_quality_control.js'),
-            ]
-          }
+* Добавить FEATURE["EVMS_QUALITY_CONTROL_ON"] в настройки
 
 * Пересобрать статику
 
  ::
 
 
-   paver update_assets lms --setings=npoed
+   paver update_assets lms --settings=npoed
