@@ -14,7 +14,7 @@ log = logging.getLogger(__name__)
 if hasattr(settings, 'EVMS_URL'):
     EVMS_URL = settings.EVMS_URL
 else:
-    EVMS_URL = 'https://evms.openedu.ru'
+    EVMS_URL = ''
 
 
 class ValError(Exception):
@@ -43,7 +43,6 @@ class ValVideoNotFoundError(ValError):
     entry in database, this error may be raised.
     """
     pass
-
 
 
 class ValCannotCreateError(ValError):

@@ -35,6 +35,7 @@ class VideoModuleEvmsMixin(object):
     """
 
     def __init__(self, *args, **kwargs):
+        self.update_js_listing()
         super(VideoModuleEvmsMixin, self).__init__(*args, **kwargs)
          #TODO: найти лучший вариант проверки
         is_studio = len(self.runtime.STATIC_URL.split('/static/')[1]) > 1
@@ -63,6 +64,39 @@ class VideoModuleEvmsMixin(object):
             log.error("Feature EVMS_QUALITY_CONTROL_ON is not turned on, but js files are set up. "
                       "Users won't be able to watch videos!"
                       "Turn feature on in settings or run django command 'video_quality disable'")
+
+    @classmethod
+    def update_js_listing(cls):
+        """
+        Добавляет в атрибут файлы js от evms
+        """
+        files_quality_set = is_quality_control_set_up()
+
+        try:
+            feature_quality_on = settings.FEATURES.get('EVMS_QUALITY_CONTROL_ON', False)
+        except AttributeError: #мы в paver update_assets, полагаемся на files_quality_set
+            feature_quality_on = True
+
+        if not(feature_quality_on and files_quality_set):
+            return
+        try:
+            module = cls.module
+            cls.js['js'].append(resource_string(module, 'js/src/video/019_html5_video.js'))
+            cls.js['js'].append(resource_string(module, 'js/src/video/049_video_quality_control.js'))
+        except:
+            pass
+
+    @classmethod
+    def get_javascript(cls):
+        """
+        Перезаписывает метод из xmodule.x_module.HTMLSnippet.get_javascript
+        так, чтобы добавлялись файлы для evms sd/hd
+        """
+        cls.update_js_listing()
+        coffee = cls.js.setdefault('coffee', [])
+        js = cls.js.setdefault('js', [])
+        cls.js.setdefault('xmodule_js', resource_string("xmodule.x_module", 'js/src/xmodule.js'))
+        return cls.js
 
 
 class VideoDescriptorEvmsMixin(object):
