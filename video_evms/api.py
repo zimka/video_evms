@@ -68,8 +68,8 @@ def _edx_openedu_compare(openedu_profile, edx_profile, is_studio=False):
         "HD": "desktop_mp4",
         "hd": "desktop_mp4",
         "hd2": "desktop_mp4",
-        "audio_sd": "sd",
-        "audio_hd": "hd",
+        "audio_sd": "desktop_webm",
+        "audio_hd": "desktop_mp4",
     }
     if is_studio:
         mapping['original'] = "desktop_webm"
