@@ -37,8 +37,7 @@ class VideoModuleEvmsMixin(object):
     def __init__(self, *args, **kwargs):
         self.update_js_listing()
         super(VideoModuleEvmsMixin, self).__init__(*args, **kwargs)
-         #TODO: найти лучший вариант проверки
-        is_studio = len(self.runtime.STATIC_URL.split('/static/')[1]) > 1
+        is_studio = (settings.SERVICE_VARIANT == 'cms')
         only_original = False
         if is_studio:
             available_profiles = edxval_api.get_available_profiles(self.edx_video_id, None)
