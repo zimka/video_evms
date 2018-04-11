@@ -125,8 +125,9 @@ def get_video_info(edx_video_id):
         data = response.read()
         clean_data = json.loads(data)
         return clean_data
-    except:
-        return None
+    except Exception as e:
+        logging.error(u"EVMS error:"+unicode(e))
+        raise ValVideoNotFoundError
 
 
 def export_to_xml(edx_video_id):
