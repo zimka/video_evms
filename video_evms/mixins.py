@@ -141,6 +141,8 @@ class VideoDescriptorEvmsMixin(object):
         self.child_editor_saved(user, old_metadata, old_content)
         self.runtime.modulestore.update_item(self, user.id)
         self.synch_edx_id(old_metadata=old_metadata, new_metadata=own_metadata(self))
+        if self.edx_video_id and self.youtube_id_1_0:
+            self.youtube_id_1_0 = ''
         self.save()
 
     def studio_view(self, context):
